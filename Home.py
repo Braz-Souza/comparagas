@@ -32,13 +32,13 @@ with st.sidebar:
                     st.success(f"Encontrados {len(models)} modelos")
                 except Exception as e:
                     st.error(f"Erro ao buscar modelos: {str(e)}")
-                    st.session_state.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+                    st.session_state.available_models = []
         else:
             st.warning("Insira API Key e Base URL primeiro")
     
     # Lista de modelos
     if 'available_models' not in st.session_state:
-        st.session_state.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+        st.session_state.available_models = []
     
     model = st.selectbox(
         "Modelo:",

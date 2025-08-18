@@ -30,4 +30,4 @@ def get_available_models(base_url: str, api_key: str) -> List[str]:
     except Exception as e:
         # Em caso de erro, retorna modelos padrão da OpenAI
         print(f"Erro ao buscar modelos: {e}")
-        return ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+        return []
