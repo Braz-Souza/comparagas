@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from utils.ragas_text_comparison import compare_texts_sync
+from utils.ragas_text_comparison import LABEL_FORMAT, compare_texts_sync, ComparisonType
 
 st.set_page_config(page_title="RAGAS Text Comparison", layout="wide")
 
@@ -52,7 +52,7 @@ st.title("Comparação de Textos com RAGAS")
 tab1, tab2 = st.tabs(["Avaliação Simples", "Avaliação Múltipla"])
 
 with tab1:
-    st.header("Factual Correctness Evaluation - Simples")
+    st.header("Text Comparison Evaluation - Simples")
     
     col1, col2 = st.columns(2)
     
@@ -74,19 +74,30 @@ with tab1:
             key="single_gen"
         )
     
-    col1, col2 = st.columns(2)
+    
+    # Comparison type selection
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        mode = st.selectbox("Mode: ", ["F1", "Precision", "Recall"], key="single_mode")
-    
+        comparison_type = st.selectbox(
+            "Tipo de Comparação:",
+            options=[ComparisonType.FACTUAL_CORRECTNESS.value, ComparisonType.SEMANTIC_SIMILARITY.value],
+            format_func=lambda x: LABEL_FORMAT.get(x, x),
+            help="Escolha o tipo de comparação a ser realizada",
+            key="single_comparison_type"
+        )
+
+    mode, atomicity = None, None
     with col2:
-        atomicity = st.selectbox("Atomicity: ", ["None", "High", "Low"], key="single_atomicity")
-        
-    if mode:
-        st.session_state.mode = mode.lower()
-    
-    if atomicity:
-        st.session_state.atomicity = atomicity.lower()
+        if comparison_type == ComparisonType.FACTUAL_CORRECTNESS.value:
+            mode = st.selectbox("Mode: ", ["F1", "Precision", "Recall"], key="single_mode")
+            if mode:
+                st.session_state.mode = mode.lower()
+    with col3:
+        if comparison_type == ComparisonType.FACTUAL_CORRECTNESS.value:
+            atomicity = st.selectbox("Atomicity: ", ["None", "High", "Low"], key="single_atomicity")
+            if atomicity:
+                st.session_state.atomicity = atomicity.lower()
 
     if st.button("Comparar Textos", type="primary", key="single_compare"):
         if not reference_text or not generated_text:
@@ -99,7 +110,8 @@ with tab1:
                     os.environ["OPENAI_API_KEY"] = openai_key
                     score = compare_texts_sync(
                         generated_text, 
-                        reference_text, 
+                        reference_text,
+                        comparison_type,
                         mode,
                         atomicity,
                         model, 
@@ -110,19 +122,21 @@ with tab1:
                     
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
+                        # Dynamic label based on comparison type
+                        label = LABEL_FORMAT.get(comparison_type, comparison_type)
                         st.metric(
-                            label="Factual Correctness Score",
+                            label=label,
                             value=f"{score:.3f}",
-                            help="Score de 0 a 1, onde 1 indica correção factual perfeita"
+                            help=f"Score de 0 a 1, onde 1 indica {label} perfeita"
                         )
                     
                     if score >= 0.8:
-                        st.success("✅ Alta correção factual")
+                        st.success(f"✅ Alta {label}")
                     elif score >= 0.6:
-                        st.warning("⚠️ Correção factual moderada")
+                        st.warning(f"⚠️ Moderada {label}")
                     else:
-                        st.error("❌ Baixa correção factual")
-                        
+                        st.error(f"❌ Baixa {label}")
+
                 except Exception as e:
                     st.error(f"Erro na avaliação: {str(e)}")
 
@@ -136,8 +150,39 @@ with tab2:
     # Configurações de avaliação múltipla
     st.subheader("⚙️ Configurações de Avaliação")
     
+    # Comparison type selection for multiple evaluations
+    comparison_types_multi = st.multiselect(
+        "Tipos de Comparação:",
+        options=[ComparisonType.FACTUAL_CORRECTNESS.value, ComparisonType.SEMANTIC_SIMILARITY.value],
+        default=[ComparisonType.FACTUAL_CORRECTNESS.value],
+        format_func=lambda x: LABEL_FORMAT.get(x, x),
+        help="Escolha os tipos de comparação a serem aplicados",
+        key="multi_comparison_types"
+    )
+    
+    # Definir opções de avaliação disponíveis baseadas nos tipos selecionados
+    evaluation_options = []
+    
+    if ComparisonType.FACTUAL_CORRECTNESS.value in comparison_types_multi:
+        evaluation_options.extend([
+            "Factual Correctness - Mode: F1, Atomicity: None",
+            "Factual Correctness - Mode: F1, Atomicity: High", 
+            "Factual Correctness - Mode: F1, Atomicity: Low",
+            "Factual Correctness - Mode: Precision, Atomicity: None",
+            "Factual Correctness - Mode: Precision, Atomicity: High",
+            "Factual Correctness - Mode: Precision, Atomicity: Low",
+            "Factual Correctness - Mode: Recall, Atomicity: None",
+            "Factual Correctness - Mode: Recall, Atomicity: High",
+            "Factual Correctness - Mode: Recall, Atomicity: Low"
+        ])
+    
+    if ComparisonType.SEMANTIC_SIMILARITY.value in comparison_types_multi:
+        evaluation_options.extend([
+            "Semantic Similarity - Default Configuration"
+        ])
+    
     # Definir opções de avaliação disponíveis
-    evaluation_options = [
+    evaluation_options_original = [
         "Factual Correctness - Mode: F1, Atomicity: None",
         "Factual Correctness - Mode: F1, Atomicity: High", 
         "Factual Correctness - Mode: F1, Atomicity: Low",
@@ -151,12 +196,14 @@ with tab2:
     
     selected_evaluations = st.multiselect(
         "Selecione os tipos de avaliação:",
-        options=evaluation_options,
-        default=["Factual Correctness - Mode: F1, Atomicity: None"],
+        options=evaluation_options if evaluation_options else evaluation_options_original,
+        default=["Factual Correctness - Mode: F1, Atomicity: None"] if evaluation_options else [],
         help="Escolha uma ou mais configurações de avaliação para aplicar a todas as comparações"
     )
     
-    if not selected_evaluations:
+    if not comparison_types_multi:
+        st.warning("⚠️ Selecione pelo menos um tipo de comparação.")
+    elif not selected_evaluations:
         st.warning("⚠️ Selecione pelo menos um tipo de avaliação.")
     
     # Input para nova iteração
@@ -230,11 +277,16 @@ with tab2:
                 import pandas as pd
                 
                 def parse_evaluation_config(eval_string):
-                    # Parse "Factual Correctness - Mode: F1, Atomicity: None"
-                    parts = eval_string.split(" - ")[1].split(", ")
-                    mode = parts[0].split(": ")[1].lower()
-                    atomicity = parts[1].split(": ")[1].lower()
-                    return mode, atomicity
+                    # Parse "Factual Correctness - Mode: F1, Atomicity: None" or "Semantic Similarity - Default Configuration"
+                    if eval_string.startswith("Factual Correctness"):
+                        parts = eval_string.split(" - ")[1].split(", ")
+                        mode = parts[0].split(": ")[1].lower()
+                        atomicity = parts[1].split(": ")[1].lower()
+                        return ComparisonType.FACTUAL_CORRECTNESS.value, mode, atomicity
+                    elif eval_string.startswith("Semantic Similarity"):
+                        return ComparisonType.SEMANTIC_SIMILARITY.value, None, None
+                    else:
+                        return ComparisonType.FACTUAL_CORRECTNESS.value, "f1", "none"
                 
                 os.environ["OPENAI_API_KEY"] = openai_key
                 all_results = []
@@ -251,7 +303,7 @@ with tab2:
                     # Para cada tipo de avaliação selecionado
                     for eval_config in selected_evaluations:
                         evaluation_count += 1
-                        mode, atomicity = parse_evaluation_config(eval_config)
+                        comparison_type, mode, atomicity = parse_evaluation_config(eval_config)
                         
                         status_text.text(f"Avaliando: Iteração {comp['iteration']} - {eval_config}")
                         
@@ -259,6 +311,7 @@ with tab2:
                             score = compare_texts_sync(
                                 comp['generated'],
                                 comp['reference'],
+                                comparison_type,
                                 mode,
                                 atomicity,
                                 model,
@@ -290,8 +343,10 @@ with tab2:
                             scores.append(result[eval_config])
                     
                     if scores:  # Se há scores válidos
+                        # Clean up the evaluation name for display
+                        clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
                         boxplot_data.append({
-                            'evaluation': eval_config.replace("Factual Correctness - ", ""),
+                            'evaluation': clean_name,
                             'scores': scores
                         })
                 
