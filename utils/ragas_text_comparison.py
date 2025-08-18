@@ -1,8 +1,9 @@
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics._factual_correctness import FactualCorrectness
 from ragas.metrics import SemanticSimilarity
-from utils.llm import get_evaluator_llm, get_evaluator_embeddings
+from utils.llm import eval_llm, update_eval_llm
 import asyncio
+import os
 from enum import Enum
 from typing import Union
 
@@ -15,53 +16,57 @@ LABEL_FORMAT = {
     ComparisonType.SEMANTIC_SIMILARITY.value: "Similaridade Semântica"
 }
 
+def _get_scorer(comparison_type: ComparisonType):
+    """Factory para criar scorer baseado no tipo de comparação"""
+    if comparison_type == ComparisonType.FACTUAL_CORRECTNESS:
+        return FactualCorrectness(llm=eval_llm.get_llm_evaluator())
+    elif comparison_type == ComparisonType.SEMANTIC_SIMILARITY:
+        return SemanticSimilarity(embeddings=eval_llm.get_evaluator_embeddings())
+    else:
+        raise ValueError(f"Tipo de comparação não suportado: {comparison_type}")
+
 async def compare_texts(
-    response, 
-    reference,
+    response: str, 
+    reference: str,
     comparison_type: Union[ComparisonType, str] = ComparisonType.FACTUAL_CORRECTNESS,
-    mode=None,
-    atomicity=None,
-    model="gpt-4o-mini", 
-    base_url="https://api.openai.com/v1"
-):
-    # Convert string to enum if needed
+    mode: str = None,
+    atomicity: str = None,
+    model: str = "gpt-4o-mini", 
+    base_url: str = "https://api.openai.com/v1"
+) -> float:
+    """Compara textos usando RAGAS"""
+    # Normalizar tipo de comparação
     if isinstance(comparison_type, str):
         comparison_type = ComparisonType(comparison_type)
     
-    sample_data = {
-        "response": response,
-        "reference": reference,
-        "mode": mode,
-        "atomicity": atomicity
-    }
-    sample = SingleTurnSample(**sample_data)
-
-    # Select scorer based on comparison type
-    if comparison_type == ComparisonType.FACTUAL_CORRECTNESS:
-        scorer = FactualCorrectness(llm=get_evaluator_llm(model, base_url))
-    elif comparison_type == ComparisonType.SEMANTIC_SIMILARITY:
-        scorer = SemanticSimilarity(embeddings=get_evaluator_embeddings())
-    else:
-        raise ValueError(f"Unsupported comparison type: {comparison_type}")
+    # Atualizar configuração
+    update_eval_llm(
+        api_key=os.getenv("OPENAI_API_KEY", "None"),
+        model=model,
+        base_url=base_url
+    )
     
-    result = await scorer.single_turn_ascore(sample)
-    return result
+    # Criar sample e scorer
+    sample = SingleTurnSample(
+        response=response,
+        reference=reference,
+        mode=mode,
+        atomicity=atomicity
+    )
+    
+    scorer = _get_scorer(comparison_type)
+    return await scorer.single_turn_ascore(sample)
 
 def compare_texts_sync(
-    response, 
-    reference,
+    response: str, 
+    reference: str,
     comparison_type: Union[ComparisonType, str] = ComparisonType.FACTUAL_CORRECTNESS,
-    mode=None,
-    atomicity=None,
-    model="gpt-4o-mini", 
-    base_url="https://api.openai.com/v1"
-):
+    mode: str = None,
+    atomicity: str = None,
+    model: str = "gpt-4o-mini", 
+    base_url: str = "https://api.openai.com/v1"
+) -> float:
+    """Versão síncrona de compare_texts"""
     return asyncio.run(compare_texts(
-        response, 
-        reference,
-        comparison_type=comparison_type,
-        mode=mode,
-        atomicity=atomicity,
-        model=model, 
-        base_url=base_url
+        response, reference, comparison_type, mode, atomicity, model, base_url
     ))

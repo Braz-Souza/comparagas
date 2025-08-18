@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 from utils.ragas_text_comparison import LABEL_FORMAT, compare_texts_sync, ComparisonType
+from utils.llm import eval_llm, update_eval_llm
 
 st.set_page_config(page_title="RAGAS Text Comparison", layout="wide")
 
@@ -8,43 +9,83 @@ st.set_page_config(page_title="RAGAS Text Comparison", layout="wide")
 with st.sidebar:
     st.header("⚙️ Configurações")
     
+    # Mostrar informações do provedor atual
+    provider_info = eval_llm.get_info()
+    api_key_configured = provider_info.get('api_key_set', False)
+    current_model = provider_info.get('model', 'N/A') if api_key_configured else 'N/A (API Key necessária)'
+    
+    st.info(f"**Provedor:** {provider_info.get('provider', 'OpenAI')}\n\n"
+            f"**Modelo:** {current_model}\n\n"
+            f"**API Key:** {'✅ Configurada' if api_key_configured else '❌ Não configurada'}")
+
+    # Seleção do tipo de endpoint
+    use_custom_endpoint = st.checkbox(
+        "Usar endpoint personalizado",
+        help="Marque para usar um endpoint diferente do OpenAI oficial"
+    )
+
     openai_key = st.text_input(
-        "OpenAI API Key:",
+        "API Key:",
         type="password",
         help="Necessário para usar RAGAS"
     )
     
-    base_url = st.text_input(
-        "Base URL:",
-        value="https://api.openai.com/v1",
-        help="URL base da API OpenAI ou provedor compatível"
-    )
+    # Base URL apenas se usar endpoint personalizado
+    if use_custom_endpoint:
+        base_url = st.text_input(
+            "Base URL:",
+            value="https://api.openai.com/v1",
+            help="URL base da API OpenAI ou provedor compatível"
+        )
+    else:
+        base_url = "https://api.openai.com/v1"
     
     # Botão para buscar modelos
     if st.button("🔄 Buscar Modelos", help="Busca modelos disponíveis no endpoint"):
-        if openai_key and base_url:
+        if openai_key:
             with st.spinner("Buscando modelos..."):
                 try:
-                    from utils.model_fetcher import get_available_models
-                    os.environ["OPENAI_API_KEY"] = openai_key
-                    models = get_available_models(base_url, openai_key)
+                    # Atualizar eval_llm temporariamente para buscar modelos
+                    update_eval_llm(api_key=openai_key, base_url=base_url)
+                    models = eval_llm.get_available_models()
                     st.session_state.available_models = models
+                    st.session_state.current_api_key = openai_key
+                    st.session_state.current_base_url = base_url
                     st.success(f"Encontrados {len(models)} modelos")
                 except Exception as e:
                     st.error(f"Erro ao buscar modelos: {str(e)}")
                     st.session_state.available_models = []
         else:
-            st.warning("Insira API Key e Base URL primeiro")
+            st.warning("Insira a API Key primeiro")
     
-    # Lista de modelos
-    if 'available_models' not in st.session_state:
-        st.session_state.available_models = []
+    # Lista de modelos - apenas mostrar se há API key
+    model = None
+    if openai_key and openai_key.strip():
+        if 'available_models' not in st.session_state:
+            st.session_state.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
+        
+        model = st.selectbox(
+            "Modelo:",
+            st.session_state.available_models,
+            help="Modelo a ser usado para avaliação"
+        )
+    else:
+        st.info("ℹ️ Insira uma API Key para selecionar modelos")
     
-    model = st.selectbox(
-        "Modelo:",
-        st.session_state.available_models,
-        help="Modelo a ser usado para avaliação"
-    )
+    # Aplicar configurações - apenas mostrar se há API key e modelo
+    if openai_key and openai_key.strip() and model:
+        if st.button("💾 Aplicar Configurações", type="primary"):
+            try:
+                update_eval_llm(api_key=openai_key, model=model, base_url=base_url)
+                os.environ["OPENAI_API_KEY"] = openai_key
+                st.success("Configurações aplicadas com sucesso!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao aplicar configurações: {str(e)}")
+    elif openai_key and openai_key.strip() and not model:
+        st.info("🔄 Clique em 'Buscar Modelos' para carregar os modelos disponíveis")
+    elif not openai_key or not openai_key.strip():
+        st.info("🔑 Configure uma API Key para continuar")
 
 st.title("Comparação de Textos com RAGAS")
 
