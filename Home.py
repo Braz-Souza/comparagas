@@ -12,7 +12,8 @@ with st.sidebar:
     # Provider selection
     PROVIDERS = {
         "OpenAI": "https://api.openai.com/v1",
-        "OpenRouter": "https://openrouter.ai/api/v1"
+        "OpenRouter": "https://openrouter.ai/api/v1",
+        "DeepSeek": "https://api.deepseek.com/v1"
     }
     
     selected_provider = st.selectbox(

@@ -57,7 +57,9 @@ class LLMProvider:
             provider_name = "OpenRouter"
         elif "api.openai.com" in self.base_url:
             provider_name = "OpenAI"
-        
+        elif "api.deepseek.com" in self.base_url:
+            provider_name = "DeepSeek"
+
         return {
             "provider": provider_name,
             "model": self.model,
