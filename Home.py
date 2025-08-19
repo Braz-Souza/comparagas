@@ -9,36 +9,26 @@ st.set_page_config(page_title="RAGAS Text Comparison", layout="wide")
 with st.sidebar:
     st.header("⚙️ Configurações")
     
-    # Mostrar informações do provedor atual
-    provider_info = eval_llm.get_info()
-    api_key_configured = provider_info.get('api_key_set', False)
-    current_model = provider_info.get('model', 'N/A') if api_key_configured else 'N/A (API Key necessária)'
+    # Provider selection
+    PROVIDERS = {
+        "OpenAI": "https://api.openai.com/v1",
+        "OpenRouter": "https://openrouter.ai/api/v1"
+    }
     
-    st.info(f"**Provedor:** {provider_info.get('provider', 'OpenAI')}\n\n"
-            f"**Modelo:** {current_model}\n\n"
-            f"**API Key:** {'✅ Configurada' if api_key_configured else '❌ Não configurada'}")
-
-    # Seleção do tipo de endpoint
-    use_custom_endpoint = st.checkbox(
-        "Usar endpoint personalizado",
-        help="Marque para usar um endpoint diferente do OpenAI oficial"
+    selected_provider = st.selectbox(
+        "Provedor:",
+        options=list(PROVIDERS.keys()),
+        help="Selecione o provedor de LLM",
+        index=0
     )
+    
+    base_url = PROVIDERS[selected_provider]
 
     openai_key = st.text_input(
         "API Key:",
         type="password",
         help="Necessário para usar RAGAS"
     )
-    
-    # Base URL apenas se usar endpoint personalizado
-    if use_custom_endpoint:
-        base_url = st.text_input(
-            "Base URL:",
-            value="https://api.openai.com/v1",
-            help="URL base da API OpenAI ou provedor compatível"
-        )
-    else:
-        base_url = "https://api.openai.com/v1"
     
     # Botão para buscar modelos
     if st.button("🔄 Buscar Modelos", help="Busca modelos disponíveis no endpoint"):
@@ -86,6 +76,16 @@ with st.sidebar:
         st.info("🔄 Clique em 'Buscar Modelos' para carregar os modelos disponíveis")
     elif not openai_key or not openai_key.strip():
         st.info("🔑 Configure uma API Key para continuar")
+    
+    # Mostrar informações do provedor atual (no final da sidebar)
+    st.markdown("---")
+    provider_info = eval_llm.get_info()
+    api_key_configured = provider_info.get('api_key_set', False)
+    current_model = provider_info.get('model', 'N/A') if api_key_configured else 'N/A (API Key necessária)'
+    
+    st.info(f"**Provedor:** {selected_provider}\n\n"
+            f"**Modelo:** {current_model}\n\n"
+            f"**API Key:** {'✅ Configurada' if api_key_configured else '❌ Não configurada'}")
 
 st.title("Comparação de Textos com RAGAS")
 

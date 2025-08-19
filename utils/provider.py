@@ -51,8 +51,15 @@ class LLMProvider:
     
     def get_info(self) -> Dict[str, Any]:
         """Retorna informações do provedor"""
+        # Determine provider name based on base URL
+        provider_name = "OpenAI"
+        if "openrouter.ai" in self.base_url:
+            provider_name = "OpenRouter"
+        elif "api.openai.com" in self.base_url:
+            provider_name = "OpenAI"
+        
         return {
-            "provider": "OpenAI",
+            "provider": provider_name,
             "model": self.model,
             "base_url": self.base_url,
             "api_key_set": bool(self.api_key and self.api_key != "None" and self.api_key.strip())
