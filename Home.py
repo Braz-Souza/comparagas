@@ -375,8 +375,8 @@ with tab2:
                 # Criar DataFrame para visualização
                 df_results = pd.DataFrame(all_results)
                 
-                # Preparar dados para boxplot
-                boxplot_data = []
+                # Preparar dados para gráfico de barras com médias
+                bar_data = []
                 
                 for eval_config in selected_evaluations:
                     scores = []
@@ -387,33 +387,35 @@ with tab2:
                     if scores:  # Se há scores válidos
                         # Clean up the evaluation name for display
                         clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
-                        boxplot_data.append({
+                        media_scores = sum(scores) / len(scores)
+                        bar_data.append({
                             'evaluation': clean_name,
-                            'scores': scores
+                            'media': media_scores
                         })
                 
-                # Criar boxplot
+                # Criar gráfico de barras
                 fig = go.Figure()
                 
                 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
                 
-                for i, data in enumerate(boxplot_data):
-                    fig.add_trace(go.Box(
-                        y=data['scores'],
-                        name=data['evaluation'],
-                        marker_color=colors[i % len(colors)],
-                        boxpoints='all',  # Mostrar todos os pontos
-                        jitter=0.3,  # Espalhar pontos horizontalmente
-                        pointpos=-1.8  # Posição dos pontos
-                    ))
+                evaluations = [data['evaluation'] for data in bar_data]
+                medias = [data['media'] for data in bar_data]
+                
+                fig.add_trace(go.Bar(
+                    x=evaluations,
+                    y=medias,
+                    marker_color=[colors[i % len(colors)] for i in range(len(evaluations))],
+                    text=[f"{media:.3f}" for media in medias],
+                    textposition='outside'
+                ))
                 
                 fig.update_layout(
-                    title="Distribuição de Scores por Tipo de Avaliação",
+                    title="Média dos Scores por Tipo de Avaliação",
                     xaxis_title="Tipo de Avaliação",
-                    yaxis_title="Score",
-                    yaxis=dict(range=[0, 1]),
+                    yaxis_title="Score Médio",
+                    yaxis=dict(range=[0, max(1, max(medias) * 1.1) if medias else 1]),
                     height=600,
-                    showlegend=True
+                    showlegend=False
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -422,11 +424,17 @@ with tab2:
                 st.subheader("Resumo Estatístico por Avaliação")
                 
                 summary_data = []
-                for data in boxplot_data:
-                    scores = data['scores']
-                    if scores:
+                for eval_config in selected_evaluations:
+                    scores = []
+                    for result in all_results:
+                        if isinstance(result[eval_config], (int, float)):
+                            scores.append(result[eval_config])
+                    
+                    if scores:  # Se há scores válidos
+                        # Clean up the evaluation name for display
+                        clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
                         summary_data.append({
-                            'Avaliação': data['evaluation'],
+                            'Avaliação': clean_name,
                             'Média': f"{sum(scores) / len(scores):.3f}",
                             'Mediana': f"{sorted(scores)[len(scores)//2]:.3f}",
                             'Mínimo': f"{min(scores):.3f}",
