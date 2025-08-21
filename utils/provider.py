@@ -7,8 +7,16 @@ from ragas.embeddings import LangchainEmbeddingsWrapper
 class LLMProvider:
     """Simplified LLM provider using OpenAI API"""
     
-    def __init__(self, api_key: str = "None", model: str = "gpt-4o-mini", base_url: str = "https://api.openai.com/v1"):
+    def __init__(self, 
+            api_key: str = "None", 
+            embedding_api_key: str = None, 
+            embedding_base_url: str = None, 
+            model: str = "gpt-4.1-nano", 
+            base_url: str = "https://api.openai.com/v1"
+        ):
         self.api_key = api_key
+        self.embedding_api_key = embedding_api_key
+        self.embedding_base_url = embedding_base_url
         self.model = model
         self.base_url = base_url
     
@@ -37,6 +45,15 @@ class LLMProvider:
     
     def get_evaluator_embeddings(self) -> LangchainEmbeddingsWrapper:
         """Retorna embeddings configurados"""
+        # Configuração de Embedding DEFAULT
+        if (self.embedding_api_key and self.embedding_base_url):
+            print("USE DEFAULT MAIN")
+            return LangchainEmbeddingsWrapper(OpenAIEmbeddings(
+                api_key=self.embedding_api_key,
+                base_url=self.embedding_base_url
+            ))
+        print(self.embedding_api_key, self.embedding_base_url)
+        # Utilização de embedding da API KEY
         self._validate_api_key()
         config = {"api_key": self.api_key}
         if self.base_url != "https://api.openai.com/v1":

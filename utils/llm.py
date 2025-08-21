@@ -3,7 +3,11 @@ import os
 from typing import Optional
 
 # Instância global
-eval_llm = LLMProvider(api_key=os.getenv("OPENAI_API_KEY", "None"))
+eval_llm = LLMProvider(
+    api_key=os.getenv("OPENAI_API_KEY", "None"),
+    embedding_api_key=os.getenv("EMBEDDING_API_KEY", None),
+    embedding_base_url=os.getenv("EMBEDDING_BASE_URL", None),
+)
 
 def update_eval_llm(
     api_key: Optional[str] = None,
