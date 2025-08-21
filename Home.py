@@ -33,18 +33,23 @@ def display_combined_results(available_results):
         display_subplots_chart(available_results, all_evaluations)
 
 def display_grouped_bar_chart(available_results, all_evaluations):
-    """Exibe gráfico de barras agrupadas com todos os tipos de teste"""
+    """Exibe gráfico de barras agrupadas com avaliações unidas e modelos separados"""
     import plotly.graph_objects as go
     
     fig = go.Figure()
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
     
-    # Para cada tipo de teste
+    # Preparar nomes limpos das avaliações para o eixo X
+    clean_evaluation_names = []
+    for eval_config in all_evaluations:
+        clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
+        clean_evaluation_names.append(clean_name)
+    
+    # Para cada tipo de teste (modelo)
     for i, test_type in enumerate(available_results):
         result_data = st.session_state.test_results[test_type]
         all_results = result_data['results']
         
-        x_labels = []
         y_values = []
         
         # Para cada avaliação disponível
@@ -56,22 +61,17 @@ def display_grouped_bar_chart(available_results, all_evaluations):
                         scores.append(result[eval_config])
                 
                 if scores:
-                    clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
-                    x_labels.append(clean_name)
                     y_values.append(sum(scores) / len(scores))
                 else:
-                    x_labels.append(eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - "))
                     y_values.append(0)
             else:
                 # Métrica não avaliada para este tipo de teste
-                clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
-                x_labels.append(clean_name)
                 y_values.append(0)
         
-        # Adicionar barra para este tipo de teste
+        # Adicionar barra para este tipo de teste (modelo)
         fig.add_trace(go.Bar(
             name=test_type,
-            x=x_labels,
+            x=clean_evaluation_names,
             y=y_values,
             marker_color=colors[i % len(colors)],
             text=[f"{val:.3f}" if val > 0 else "N/A" for val in y_values],
@@ -79,7 +79,7 @@ def display_grouped_bar_chart(available_results, all_evaluations):
         ))
     
     fig.update_layout(
-        title="Comparação de Médias entre Tipos de Teste",
+        title="Comparação de Médias: Avaliações Unidas por Modelo",
         xaxis_title="Métricas de Avaliação",
         yaxis_title="Score Médio",
         yaxis=dict(range=[0, 1.1]),
@@ -90,53 +90,50 @@ def display_grouped_bar_chart(available_results, all_evaluations):
             yanchor="bottom",
             y=1.02,
             xanchor="right",
-            x=1
+            x=1,
+            title="Modelos/Tipos de Teste"
         )
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
 def display_subplots_chart(available_results, all_evaluations):
-    """Exibe subplots com uma métrica por subplot"""
+    """Exibe subplots com um modelo por subplot, mostrando todas as avaliações"""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
     
-    if not all_evaluations:
-        st.warning("Nenhuma métrica encontrada para visualizar")
+    if not available_results:
+        st.warning("Nenhum resultado encontrado para visualizar")
         return
     
-    # Calcular layout dos subplots
-    n_metrics = len(all_evaluations)
-    cols = min(2, n_metrics)  # Máximo 2 colunas
-    rows = (n_metrics + cols - 1) // cols  # Calcular número de linhas necessárias
-    
-    # Criar títulos limpos para subplots
-    clean_titles = [eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ") 
-                   for eval_config in all_evaluations]
+    # Calcular layout dos subplots - um subplot por modelo
+    n_models = len(available_results)
+    cols = min(2, n_models)  # Máximo 2 colunas
+    rows = (n_models + cols - 1) // cols  # Calcular número de linhas necessárias
     
     fig = make_subplots(
         rows=rows, 
         cols=cols,
-        subplot_titles=clean_titles,
+        subplot_titles=available_results,
         vertical_spacing=0.12,
         horizontal_spacing=0.15
     )
     
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22']
     
-    # Para cada métrica, criar um subplot
-    for idx, eval_config in enumerate(all_evaluations):
+    # Para cada modelo, criar um subplot
+    for idx, test_type in enumerate(available_results):
         row = (idx // cols) + 1
         col = (idx % cols) + 1
         
-        test_types = []
+        result_data = st.session_state.test_results[test_type]
+        all_results = result_data['results']
+        
+        evaluation_names = []
         scores = []
         
-        # Para cada tipo de teste
-        for test_type in available_results:
-            result_data = st.session_state.test_results[test_type]
-            all_results = result_data['results']
-            
+        # Para cada avaliação disponível
+        for eval_config in all_evaluations:
             if eval_config in result_data['evaluations']:
                 metric_scores = []
                 for result in all_results:
@@ -144,16 +141,17 @@ def display_subplots_chart(available_results, all_evaluations):
                         metric_scores.append(result[eval_config])
                 
                 if metric_scores:
-                    test_types.append(test_type)
+                    clean_name = eval_config.replace("Factual Correctness - ", "FC - ").replace("Semantic Similarity - ", "SS - ")
+                    evaluation_names.append(clean_name)
                     scores.append(sum(metric_scores) / len(metric_scores))
         
-        if test_types and scores:
+        if evaluation_names and scores:
             fig.add_trace(
                 go.Bar(
-                    x=test_types,
+                    x=evaluation_names,
                     y=scores,
-                    name=clean_titles[idx],
-                    marker_color=[colors[i % len(colors)] for i in range(len(test_types))],
+                    name=test_type,
+                    marker_color=[colors[i % len(colors)] for i in range(len(evaluation_names))],
                     text=[f"{score:.3f}" for score in scores],
                     textposition='outside',
                     showlegend=False
@@ -161,11 +159,12 @@ def display_subplots_chart(available_results, all_evaluations):
                 row=row, col=col
             )
             
-            # Configurar eixo Y para cada subplot
+            # Configurar eixos para cada subplot
             fig.update_yaxes(range=[0, 1.1], row=row, col=col)
+            fig.update_xaxes(tickangle=45, row=row, col=col)
     
     fig.update_layout(
-        title="Comparação Detalhada por Métrica",
+        title="Comparação Detalhada: Avaliações por Modelo",
         height=300 * rows,  # Altura dinâmica baseada no número de linhas
         showlegend=False
     )
