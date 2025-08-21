@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from utils.ragas_text_comparison import LABEL_FORMAT, compare_texts_sync, ComparisonType
 from utils.llm import eval_llm, update_eval_llm
+from utils.report_generator import generate_pdf_report, generate_docx_report
 
 def display_combined_results(available_results):
     """Função para exibir gráfico combinado com todos os tipos de teste"""
@@ -824,6 +825,48 @@ with tab2:
         
         # Gráfico combinado com todos os tipos de teste
         display_combined_results(available_results)
+        
+        st.divider()
+        
+        # Seção de geração de relatórios
+        st.subheader("📄 Geração de Relatórios")
+        
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            st.info("Gere relatórios detalhados com todos os resultados das avaliações")
+        
+        with col2:
+            if st.button("📥 Gerar Relatório PDF", type="primary"):
+                try:
+                    with st.spinner("Gerando relatório PDF..."):
+                        pdf_content = generate_pdf_report(st.session_state.test_results, st.session_state.test_types)
+                    
+                    st.download_button(
+                        label="⬇️ Download PDF",
+                        data=pdf_content,
+                        file_name=f"relatorio_ragas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf"
+                    )
+                    st.success("Relatório PDF gerado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao gerar relatório PDF: {str(e)}")
+        
+        with col3:
+            if st.button("📄 Gerar Relatório DOCX"):
+                try:
+                    with st.spinner("Gerando relatório DOCX..."):
+                        docx_content = generate_docx_report(st.session_state.test_results, st.session_state.test_types)
+                    
+                    st.download_button(
+                        label="⬇️ Download DOCX",
+                        data=docx_content,
+                        file_name=f"relatorio_ragas_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                    st.success("Relatório DOCX gerado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao gerar relatório DOCX: {str(e)}")
         
         st.divider()
         
