@@ -21,7 +21,15 @@ def _get_scorer(comparison_type: ComparisonType):
     if comparison_type == ComparisonType.FACTUAL_CORRECTNESS:
         return FactualCorrectness(llm=eval_llm.get_llm_evaluator())
     elif comparison_type == ComparisonType.SEMANTIC_SIMILARITY:
-        return SemanticSimilarity(embeddings=eval_llm.get_evaluator_embeddings())
+        try:
+            embeddings = eval_llm.get_evaluator_embeddings()
+            return SemanticSimilarity(embeddings=embeddings)
+        except Exception as e:
+            # Se o provedor não suporta embeddings, lança erro mais específico
+            if "'str' object has no attribute 'data'" in str(e):
+                raise ValueError("O provedor/modelo escolhido não possui método de embedding necessário para Similaridade Semântica")
+            else:
+                raise ValueError(f"Erro ao configurar embeddings: {str(e)}")
     else:
         raise ValueError(f"Tipo de comparação não suportado: {comparison_type}")
 
@@ -46,16 +54,24 @@ async def compare_texts(
         base_url=base_url
     )
     
-    # Criar sample e scorer
-    sample = SingleTurnSample(
-        response=response,
-        reference=reference,
-        mode=mode,
-        atomicity=atomicity
-    )
+    try:
+        # Criar sample e scorer
+        sample = SingleTurnSample(
+            response=response,
+            reference=reference,
+            mode=mode,
+            atomicity=atomicity
+        )
+        
+        scorer = _get_scorer(comparison_type)
+        return await scorer.single_turn_ascore(sample)
     
-    scorer = _get_scorer(comparison_type)
-    return await scorer.single_turn_ascore(sample)
+    except Exception as e:
+        # Capturar erro específico de embedding
+        if "'str' object has no attribute 'data'" in str(e):
+            raise ValueError("Erro durante avaliação: 'str' object has no attribute 'data' - A opção escolhida não tem método de embedding")
+        else:
+            raise
 
 def compare_texts_sync(
     response: str, 
@@ -67,6 +83,13 @@ def compare_texts_sync(
     base_url: str = "https://api.openai.com/v1"
 ) -> float:
     """Versão síncrona de compare_texts"""
-    return asyncio.run(compare_texts(
-        response, reference, comparison_type, mode, atomicity, model, base_url
-    ))
+    try:
+        return asyncio.run(compare_texts(
+            response, reference, comparison_type, mode, atomicity, model, base_url
+        ))
+    except Exception as e:
+        # Capturar erro específico de embedding
+        if "'str' object has no attribute 'data'" in str(e):
+            raise ValueError("Erro durante avaliação: 'str' object has no attribute 'data' - A opção escolhida não tem método de embedding")
+        else:
+            raise
