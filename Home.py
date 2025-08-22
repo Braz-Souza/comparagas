@@ -4,6 +4,146 @@ import pandas as pd
 from utils.ragas_text_comparison import LABEL_FORMAT, compare_texts_sync, ComparisonType
 from utils.llm import eval_llm, update_eval_llm
 from utils.report_generator import generate_pdf_report, generate_docx_report
+import streamlit.components.v1 as components
+
+def add_localStorage_functions():
+    """Adiciona funções JavaScript para gerenciar localStorage"""
+    components.html(
+        """
+        <script>
+        // Função para salvar dados no localStorage
+        function saveToLocalStorage(testType, data) {
+            const key = `comparagas_${testType}`;
+            localStorage.setItem(key, JSON.stringify(data));
+            console.log(`Dados salvos para ${testType}:`, data);
+        }
+        
+        // Função para carregar dados do localStorage
+        function loadFromLocalStorage(testType) {
+            const key = `comparagas_${testType}`;
+            const data = localStorage.getItem(key);
+            const result = data ? JSON.parse(data) : null;
+            console.log(`Dados carregados para ${testType}:`, result);
+            return result;
+        }
+        
+        // Função para limpar dados do localStorage
+        function clearLocalStorage(testType) {
+            const key = `comparagas_${testType}`;
+            localStorage.removeItem(key);
+            console.log(`Dados limpos para ${testType}`);
+        }
+        
+        // Função para listar todas as chaves salvas
+        function listAllKeys() {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('comparagas_')) {
+                    keys.push(key);
+                }
+            }
+            console.log('Chaves encontradas:', keys);
+            return keys;
+        }
+        
+        // Disponibilizar funções globalmente
+        window.comparagasStorage = {
+            save: saveToLocalStorage,
+            load: loadFromLocalStorage,
+            clear: clearLocalStorage,
+            listKeys: listAllKeys
+        };
+        
+        // Auto-executar ao carregar
+        console.log('LocalStorage functions loaded');
+        </script>
+        """,
+        height=0
+    )
+
+def save_current_data_to_localStorage(test_type):
+    """Salva os dados atuais no localStorage através de JavaScript"""
+    if not test_type:
+        return
+    
+    # Obter dados dos campos de texto atuais
+    reference_text = st.session_state.get(f'multi_ref_{test_type}', '')
+    generated_text = st.session_state.get(f'multi_gen_{test_type}', '')
+    selected_evaluations = st.session_state.get('multi_comparison_types', [])
+    evaluation_configs = st.session_state.get('selected_evaluations_for_storage', [])
+    
+    data = {
+        'reference_text': reference_text,
+        'generated_text': generated_text,
+        'selected_evaluations': selected_evaluations,
+        'evaluation_configs': evaluation_configs
+    }
+    
+    # Executar JavaScript para salvar
+    components.html(
+        f"""
+        <script>
+        if (window.comparagasStorage) {{
+            window.comparagasStorage.save('{test_type}', {data});
+        }}
+        </script>
+        """,
+        height=0
+    )
+
+def load_data_from_localStorage(test_type):
+    """Carrega dados do localStorage e os coloca no session_state"""
+    if not test_type:
+        return
+    
+    # Chaves para os campos de texto
+    reference_key = f'multi_ref_{test_type}'
+    generated_key = f'multi_gen_{test_type}'
+    temp_key = f'temp_data_{test_type}'
+    
+    # Sempre garantir que as chaves existam no session_state
+    st.session_state.setdefault(reference_key, '')
+    st.session_state.setdefault(generated_key, '')
+    st.session_state.setdefault('multi_comparison_types', [ComparisonType.FACTUAL_CORRECTNESS.value])
+    st.session_state.setdefault('selected_evaluations_for_storage', [])
+    
+    # Verificar se há dados salvos para restaurar
+    if temp_key in st.session_state:
+        saved_data = st.session_state[temp_key]
+        
+        # Restaurar dados apenas se tiverem conteúdo significativo
+        if saved_data.get('reference_text'):
+            st.session_state[reference_key] = saved_data['reference_text']
+            
+        if saved_data.get('generated_text'):
+            st.session_state[generated_key] = saved_data['generated_text']
+            
+        # Restaurar configurações de avaliação
+        if saved_data.get('selected_evaluations'):
+            st.session_state['multi_comparison_types'] = saved_data['selected_evaluations']
+        if saved_data.get('evaluation_configs'):
+            st.session_state['selected_evaluations_for_storage'] = saved_data['evaluation_configs']
+
+def save_data_automatically(test_type):
+    """Salva dados automaticamente quando há mudanças"""
+    if not test_type:
+        return
+    
+    # Obter dados atuais dos campos usando setdefault para segurança
+    reference_text = st.session_state.get(f'multi_ref_{test_type}', '')
+    generated_text = st.session_state.get(f'multi_gen_{test_type}', '')
+    selected_evaluations = st.session_state.get('multi_comparison_types', [ComparisonType.FACTUAL_CORRECTNESS.value])
+    evaluation_configs = st.session_state.get('selected_evaluations_for_storage', [])
+    
+    # Salvar apenas se há algum conteúdo para salvar
+    if reference_text or generated_text or evaluation_configs:
+        st.session_state[f'temp_data_{test_type}'] = {
+            'reference_text': reference_text,
+            'generated_text': generated_text,
+            'selected_evaluations': selected_evaluations,
+            'evaluation_configs': evaluation_configs
+        }
 
 def display_combined_results(available_results):
     """Função para exibir gráfico combinado com todos os tipos de teste"""
@@ -456,6 +596,9 @@ with tab1:
 with tab2:
     st.header("Comparação Múltipla - Tipos de Teste")
     
+    # Adicionar funções JavaScript do localStorage
+    add_localStorage_functions()
+    
     # Inicializar session state para tipos de teste
     if 'test_types' not in st.session_state:
         st.session_state.test_types = {}
@@ -485,6 +628,13 @@ with tab2:
                         'created_at': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
                     }
                     st.session_state.current_test_type = new_test_type_name
+                    
+                    # Inicializar campos para o novo tipo
+                    ref_key = f"multi_ref_{new_test_type_name}"
+                    gen_key = f"multi_gen_{new_test_type_name}"
+                    st.session_state.setdefault(ref_key, "")
+                    st.session_state.setdefault(gen_key, "")
+                    
                     st.success(f"Tipo '{new_test_type_name}' criado!")
                     st.rerun()
                 else:
@@ -517,8 +667,26 @@ with tab2:
         )
         
         if current_test != st.session_state.current_test_type:
+            # Salvar dados do tipo anterior antes de trocar
+            if st.session_state.current_test_type:
+                save_data_automatically(st.session_state.current_test_type)
+            
             st.session_state.current_test_type = current_test
+            
+            # Carregar dados do novo tipo selecionado
+            load_data_from_localStorage(current_test)
+            
+            # Mostrar mensagem de dados restaurados se existirem
+            temp_key = f'temp_data_{current_test}'
+            if temp_key in st.session_state and st.session_state[temp_key]:
+                st.session_state['show_restore_message'] = True
+            
             st.rerun()
+        
+        # Mostrar mensagem de restauração se configurada
+        if st.session_state.get('show_restore_message', False):
+            st.success(f"✅ Dados salvos para '{current_test}' foram restaurados automaticamente!")
+            st.session_state['show_restore_message'] = False
         
         # Informações do tipo de teste atual
         test_info = st.session_state.test_types[current_test]
@@ -536,11 +704,15 @@ with tab2:
     # Configurações de avaliação múltipla
     st.subheader("⚙️ Configurações de Avaliação")
     
+    # Carregar dados salvos para o tipo atual
+    if current_test:
+        load_data_from_localStorage(current_test)
+    
     # Comparison type selection for multiple evaluations
     comparison_types_multi = st.multiselect(
         "Tipos de Comparação:",
         options=[ComparisonType.FACTUAL_CORRECTNESS.value, ComparisonType.SEMANTIC_SIMILARITY.value],
-        default=[ComparisonType.FACTUAL_CORRECTNESS.value],
+        default=st.session_state.get('multi_comparison_types', [ComparisonType.FACTUAL_CORRECTNESS.value]),
         format_func=lambda x: LABEL_FORMAT.get(x, x),
         help="Escolha os tipos de comparação a serem aplicados",
         key="multi_comparison_types"
@@ -580,36 +752,91 @@ with tab2:
         "Factual Correctness - Mode: Recall, Atomicity: Low"
     ]
     
+    # Definir valores padrão com base no que está salvo ou usar padrão
+    default_evaluations = st.session_state.get('selected_evaluations_for_storage', 
+                                              ["Factual Correctness - Mode: F1, Atomicity: None"] if evaluation_options else [])
+    
     selected_evaluations = st.multiselect(
         "Selecione os tipos de avaliação:",
         options=evaluation_options if evaluation_options else evaluation_options_original,
-        default=["Factual Correctness - Mode: F1, Atomicity: None"] if evaluation_options else [],
-        help="Escolha uma ou mais configurações de avaliação para aplicar a todas as comparações"
+        default=default_evaluations,
+        help="Escolha uma ou mais configurações de avaliação para aplicar a todas as comparações",
+        key="selected_evaluations_multiselect"
     )
+    
+    # Salvar seleção atual no session_state
+    st.session_state['selected_evaluations_for_storage'] = selected_evaluations
     
     if not comparison_types_multi:
         st.warning("⚠️ Selecione pelo menos um tipo de comparação.")
     elif not selected_evaluations:
         st.warning("⚠️ Selecione pelo menos um tipo de avaliação.")
     
+    # Indicador de dados salvos e opção para limpar
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        st.info(f"💾 Dados do tipo '{current_test}' são salvos automaticamente")
+    with col2:
+        if st.button("🗑️ Limpar Dados Salvos", key=f"clear_data_{current_test}"):
+            # Limpar session_state
+            temp_key = f'temp_data_{current_test}'
+            if temp_key in st.session_state:
+                del st.session_state[temp_key]
+            
+            # Limpar campos de texto
+            st.session_state[f'multi_ref_{current_test}'] = ''
+            st.session_state[f'multi_gen_{current_test}'] = ''
+            
+            # Não limpar as configurações globais, apenas para este tipo
+            st.success(f"Dados do tipo '{current_test}' foram limpos!")
+            st.rerun()
+    with col3:
+        # Botão para mostrar dados salvos (debug)
+        if st.button("🔍 Ver Dados Salvos", key=f"show_data_{current_test}"):
+            temp_key = f'temp_data_{current_test}'
+            if temp_key in st.session_state:
+                st.json(st.session_state[temp_key])
+            else:
+                st.info("Nenhum dado salvo encontrado")
+    
+    st.divider()
+    
     # Input para nova iteração
     st.subheader(f"Adicionar Nova Iteração - {current_test}")
     
     col1, col2 = st.columns([1, 1])
     
+    # Garantir que os campos existam no session_state antes de criar os widgets
+    ref_key = f"multi_ref_{current_test}"
+    gen_key = f"multi_gen_{current_test}"
+    
+    # Usar setdefault para garantir inicialização segura
+    st.session_state.setdefault(ref_key, "")
+    st.session_state.setdefault(gen_key, "")
+
+    on_change_callback = lambda: save_data_automatically(current_test)
+    
     with col1:
         new_reference = st.text_area(
             "Texto de Referência:",
             height=120,
-            key=f"multi_ref_{current_test}"
+            on_change=on_change_callback,
+            key=ref_key,
+            help="Os dados serão salvos automaticamente quando você trocar de tipo de teste"
         )
     
     with col2:
         new_generated = st.text_area(
             "Texto Gerado:",
             height=120,
-            key=f"multi_gen_{current_test}"
+            on_change=on_change_callback,
+            key=gen_key,
+            help="Os dados serão salvos automaticamente quando você trocar de tipo de teste"
         )
+
+    # Auto-save: Salvar automaticamente apenas quando trocar de tipo
+    if current_test:
+        save_data_automatically(current_test)
     
     col1, col2 = st.columns([2, 1])
     
