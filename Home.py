@@ -7,63 +7,67 @@ from utils.report_generator import generate_pdf_report, generate_docx_report
 import streamlit.components.v1 as components
 
 def add_localStorage_functions():
-    """Adiciona funções JavaScript para gerenciar localStorage"""
+    """Adiciona funções JavaScript para gerenciar localStorage sem interferir na visualização"""
+    # Usar um container invisível que não afeta o layout
     components.html(
         """
-        <script>
-        // Função para salvar dados no localStorage
-        function saveToLocalStorage(testType, data) {
-            const key = `comparagas_${testType}`;
-            localStorage.setItem(key, JSON.stringify(data));
-            console.log(`Dados salvos para ${testType}:`, data);
-        }
-        
-        // Função para carregar dados do localStorage
-        function loadFromLocalStorage(testType) {
-            const key = `comparagas_${testType}`;
-            const data = localStorage.getItem(key);
-            const result = data ? JSON.parse(data) : null;
-            console.log(`Dados carregados para ${testType}:`, result);
-            return result;
-        }
-        
-        // Função para limpar dados do localStorage
-        function clearLocalStorage(testType) {
-            const key = `comparagas_${testType}`;
-            localStorage.removeItem(key);
-            console.log(`Dados limpos para ${testType}`);
-        }
-        
-        // Função para listar todas as chaves salvas
-        function listAllKeys() {
-            const keys = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key.startsWith('comparagas_')) {
-                    keys.push(key);
-                }
+        <div style="display: none; position: absolute; top: -1000px; left: -1000px;">
+            <script>
+            // Função para salvar dados no localStorage
+            function saveToLocalStorage(testType, data) {
+                const key = `comparagas_${testType}`;
+                localStorage.setItem(key, JSON.stringify(data));
+                console.log(`Dados salvos para ${testType}:`, data);
             }
-            console.log('Chaves encontradas:', keys);
-            return keys;
-        }
-        
-        // Disponibilizar funções globalmente
-        window.comparagasStorage = {
-            save: saveToLocalStorage,
-            load: loadFromLocalStorage,
-            clear: clearLocalStorage,
-            listKeys: listAllKeys
-        };
-        
-        // Auto-executar ao carregar
-        console.log('LocalStorage functions loaded');
-        </script>
+            
+            // Função para carregar dados do localStorage
+            function loadFromLocalStorage(testType) {
+                const key = `comparagas_${testType}`;
+                const data = localStorage.getItem(key);
+                const result = data ? JSON.parse(data) : null;
+                console.log(`Dados carregados para ${testType}:`, result);
+                return result;
+            }
+            
+            // Função para limpar dados do localStorage
+            function clearLocalStorage(testType) {
+                const key = `comparagas_${testType}`;
+                localStorage.removeItem(key);
+                console.log(`Dados limpos para ${testType}`);
+            }
+            
+            // Função para listar todas as chaves salvas
+            function listAllKeys() {
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key.startsWith('comparagas_')) {
+                        keys.push(key);
+                    }
+                }
+                console.log('Chaves encontradas:', keys);
+                return keys;
+            }
+            
+            // Disponibilizar funções globalmente
+            window.comparagasStorage = {
+                save: saveToLocalStorage,
+                load: loadFromLocalStorage,
+                clear: clearLocalStorage,
+                listKeys: listAllKeys
+            };
+            
+            // Auto-executar ao carregar
+            console.log('LocalStorage functions loaded');
+            </script>
+        </div>
         """,
-        height=0
+        height=0,
+        width=0
     )
 
 def save_current_data_to_localStorage(test_type):
-    """Salva os dados atuais no localStorage através de JavaScript"""
+    """Salva os dados atuais no localStorage através de JavaScript sem interferir na visualização"""
     if not test_type:
         return
     
@@ -80,16 +84,19 @@ def save_current_data_to_localStorage(test_type):
         'evaluation_configs': evaluation_configs
     }
     
-    # Executar JavaScript para salvar
+    # Executar JavaScript para salvar com container invisível
     components.html(
         f"""
-        <script>
-        if (window.comparagasStorage) {{
-            window.comparagasStorage.save('{test_type}', {data});
-        }}
-        </script>
+        <div style="display: none; position: absolute; top: -1000px; left: -1000px;">
+            <script>
+            if (window.comparagasStorage) {{
+                window.comparagasStorage.save('{test_type}', {data});
+            }}
+            </script>
+        </div>
         """,
-        height=0
+        height=0,
+        width=0
     )
 
 def load_data_from_localStorage(test_type):
@@ -597,7 +604,7 @@ with tab2:
     st.header("Comparação Múltipla - Tipos de Teste")
     
     # Adicionar funções JavaScript do localStorage
-    add_localStorage_functions()
+    # add_localStorage_functions()
     
     # Inicializar session state para tipos de teste
     if 'test_types' not in st.session_state:
