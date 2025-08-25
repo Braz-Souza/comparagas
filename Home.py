@@ -1,6 +1,8 @@
 import streamlit as st
 import os
 import pandas as pd
+import json
+from datetime import datetime
 from utils.ragas_text_comparison import LABEL_FORMAT, compare_texts_sync, ComparisonType
 from utils.llm import eval_llm, update_eval_llm
 from utils.report_generator import generate_pdf_report, generate_docx_report
@@ -151,6 +153,83 @@ def save_data_automatically(test_type):
             'selected_evaluations': selected_evaluations,
             'evaluation_configs': evaluation_configs
         }
+
+def export_session_data():
+    """Exporta todos os dados da sessão atual para formato JSON"""
+    export_data = {
+        'metadata': {
+            'export_timestamp': datetime.now().isoformat(),
+            'version': '1.0',
+            'application': 'comparagas-ragas'
+        },
+        'test_types': st.session_state.get('test_types', {}),
+        'test_results': st.session_state.get('test_results', {}),
+        'current_configuration': {
+            'current_test_type': st.session_state.get('current_test_type', None),
+            'multi_comparison_types': st.session_state.get('multi_comparison_types', []),
+            'selected_evaluations_for_storage': st.session_state.get('selected_evaluations_for_storage', [])
+        },
+        'temp_data': {}
+    }
+    
+    # Incluir dados temporários salvos para cada tipo de teste
+    for key, value in st.session_state.items():
+        if key.startswith('temp_data_'):
+            test_type = key.replace('temp_data_', '')
+            export_data['temp_data'][test_type] = value
+    
+    return json.dumps(export_data, indent=2, ensure_ascii=False)
+
+def import_session_data(json_data):
+    """Importa dados da sessão a partir de JSON"""
+    try:
+        data = json.loads(json_data)
+        
+        # Validar formato básico
+        if 'metadata' not in data or 'test_types' not in data:
+            return False, "Formato de arquivo inválido: campos obrigatórios ausentes"
+        
+        # Validar versão
+        if data['metadata'].get('application') != 'comparagas-ragas':
+            return False, "Arquivo não é de uma sessão do Comparagas"
+        
+        # Limpar dados existentes com confirmação implícita
+        # (assumindo que o usuário já confirmou a importação)
+        
+        # Importar test_types
+        if data['test_types']:
+            st.session_state.test_types = data['test_types']
+        
+        # Importar test_results
+        if data.get('test_results'):
+            st.session_state.test_results = data['test_results']
+        
+        # Importar configuração atual
+        config = data.get('current_configuration', {})
+        if config.get('current_test_type'):
+            st.session_state.current_test_type = config['current_test_type']
+        if config.get('multi_comparison_types'):
+            st.session_state.multi_comparison_types = config['multi_comparison_types']
+        if config.get('selected_evaluations_for_storage'):
+            st.session_state.selected_evaluations_for_storage = config['selected_evaluations_for_storage']
+        
+        # Importar dados temporários
+        temp_data = data.get('temp_data', {})
+        for test_type, temp_info in temp_data.items():
+            st.session_state[f'temp_data_{test_type}'] = temp_info
+            
+            # Restaurar campos de texto se disponíveis
+            if temp_info.get('reference_text'):
+                st.session_state[f'multi_ref_{test_type}'] = temp_info['reference_text']
+            if temp_info.get('generated_text'):
+                st.session_state[f'multi_gen_{test_type}'] = temp_info['generated_text']
+        
+        return True, f"Sessão importada com sucesso! Data da exportação: {data['metadata'].get('export_timestamp', 'N/A')}"
+        
+    except json.JSONDecodeError as e:
+        return False, f"Erro ao decodificar JSON: {str(e)}"
+    except Exception as e:
+        return False, f"Erro durante importação: {str(e)}"
 
 def display_combined_results(available_results):
     """Função para exibir gráfico combinado com todos os tipos de teste"""
@@ -1101,6 +1180,75 @@ with tab2:
                     st.success("Relatório DOCX gerado com sucesso!")
                 except Exception as e:
                     st.error(f"Erro ao gerar relatório DOCX: {str(e)}")
+        
+        # Seção de Import/Export de Dados
+        st.divider()
+        st.subheader("💾 Importação/Exportação de Dados")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**📤 Exportar Sessão**")
+            st.info("Salva todos os tipos de teste, iterações e resultados da sessão atual")
+            
+            if st.button("📥 Exportar Dados da Sessão", type="primary"):
+                try:
+                    json_data = export_session_data()
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    
+                    st.download_button(
+                        label="⬇️ Download JSON",
+                        data=json_data,
+                        file_name=f"comparagas_sessao_{timestamp}.json",
+                        mime="application/json"
+                    )
+                    st.success("✅ Dados da sessão exportados! Clique no botão acima para fazer download.")
+                except Exception as e:
+                    st.error(f"Erro ao exportar dados: {str(e)}")
+        
+        with col2:
+            st.markdown("**📤 Importar Sessão**")
+            st.info("Carrega uma sessão previamente exportada (substitui dados atuais)")
+            
+            uploaded_file = st.file_uploader(
+                "Selecione o arquivo JSON da sessão:",
+                type=['json'],
+                accept_multiple_files=False,
+                key="import_session_file"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    # Lê o conteúdo do arquivo
+                    json_content = uploaded_file.getvalue().decode('utf-8')
+                    
+                    # Preview dos dados
+                    try:
+                        preview_data = json.loads(json_content)
+                        metadata = preview_data.get('metadata', {})
+                        
+                        st.info(f"""
+                        **Preview do arquivo:**
+                        - Data de exportação: {metadata.get('export_timestamp', 'N/A')}
+                        - Versão: {metadata.get('version', 'N/A')}
+                        - Tipos de teste: {len(preview_data.get('test_types', {}))}
+                        - Resultados: {len(preview_data.get('test_results', {}))}
+                        """)
+                        
+                        # Botão para confirmar importação
+                        if st.button("🔄 Confirmar Importação", type="secondary", key="confirm_import"):
+                            success, message = import_session_data(json_content)
+                            if success:
+                                st.success(f"✅ {message}")
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {message}")
+                                
+                    except json.JSONDecodeError:
+                        st.error("❌ Arquivo JSON inválido")
+                except Exception as e:
+                    st.error(f"Erro ao processar arquivo: {str(e)}")
         
         st.divider()
         
