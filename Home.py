@@ -794,11 +794,15 @@ with tab2:
     if current_test:
         load_data_from_localStorage(current_test)
     
+    # On change handler
+    on_change_callback = lambda: save_data_automatically(current_test)
+    
     # Comparison type selection for multiple evaluations
     comparison_types_multi = st.multiselect(
         "Tipos de Comparação:",
         options=[ComparisonType.FACTUAL_CORRECTNESS.value, ComparisonType.SEMANTIC_SIMILARITY.value],
         default=st.session_state.get('multi_comparison_types', [ComparisonType.FACTUAL_CORRECTNESS.value]),
+        on_change=on_change_callback,
         format_func=lambda x: LABEL_FORMAT.get(x, x),
         help="Escolha os tipos de comparação a serem aplicados",
         key="multi_comparison_types"
@@ -846,6 +850,7 @@ with tab2:
         "Selecione os tipos de avaliação:",
         options=evaluation_options if evaluation_options else evaluation_options_original,
         default=default_evaluations,
+        on_change=on_change_callback,
         help="Escolha uma ou mais configurações de avaliação para aplicar a todas as comparações",
         key="selected_evaluations_multiselect"
     )
@@ -899,8 +904,6 @@ with tab2:
     # Usar setdefault para garantir inicialização segura
     st.session_state.setdefault(ref_key, "")
     st.session_state.setdefault(gen_key, "")
-
-    on_change_callback = lambda: save_data_automatically(current_test)
     
     with col1:
         new_reference = st.text_area(
