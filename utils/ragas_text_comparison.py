@@ -1,6 +1,6 @@
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics._factual_correctness import FactualCorrectness
-from ragas.metrics import SemanticSimilarity, BleuScore
+from ragas.metrics import SemanticSimilarity, BleuScore, RougeScore
 from ragas.metrics._string import NonLLMStringSimilarity
 from utils.llm import eval_llm, update_eval_llm
 import asyncio
@@ -13,19 +13,22 @@ class ComparisonType(Enum):
     SEMANTIC_SIMILARITY = "semantic_similarity"
     NON_LLM_STRING_SIMILARITY = "non_llm_string_similarity"
     BLEU_SCORE = "bleu_score"
+    ROUGE_SCORE = "rouge_score"
 
 LABEL_FORMAT = {
     ComparisonType.FACTUAL_CORRECTNESS.value: "Correção Factual",
     ComparisonType.SEMANTIC_SIMILARITY.value: "Similaridade Semântica",
     ComparisonType.NON_LLM_STRING_SIMILARITY.value: "Similaridade de String Não-LLM",
-    ComparisonType.BLEU_SCORE.value: "Pontuação do BLEU"
+    ComparisonType.BLEU_SCORE.value: "Pontuação BLEU",
+    ComparisonType.ROUGE_SCORE.value: "Pontuação ROUGE"
 }
 
 LABEL_OPTIONS = [
     ComparisonType.FACTUAL_CORRECTNESS.value,
     ComparisonType.SEMANTIC_SIMILARITY.value,
     ComparisonType.NON_LLM_STRING_SIMILARITY.value,
-    ComparisonType.BLEU_SCORE.value
+    ComparisonType.BLEU_SCORE.value,
+    ComparisonType.ROUGE_SCORE.value
 ]
 
 def _get_scorer(comparison_type: ComparisonType):
@@ -46,15 +49,21 @@ def _get_scorer(comparison_type: ComparisonType):
         return NonLLMStringSimilarity()
     elif comparison_type == ComparisonType.BLEU_SCORE:
         return BleuScore()
+    elif comparison_type == ComparisonType.ROUGE_SCORE:
+        return RougeScore()
     else:
         raise ValueError(f"Tipo de comparação não suportado: {comparison_type}")
+
+def _get_rouge_scorer(rouge_type: str = None, mode: str = None):
+    """Função scorer alternativa para rouge"""
+    return RougeScore(rouge_type=rouge_type, mode=mode)
 
 async def compare_texts(
     response: str, 
     reference: str,
     comparison_type: Union[ComparisonType, str] = ComparisonType.FACTUAL_CORRECTNESS,
     mode: str = None,
-    atomicity: str = None,
+    atomicity_or_type: str = None,
     model: str = "gpt-4o-mini", 
     base_url: str = "https://api.openai.com/v1"
 ) -> float:
@@ -76,10 +85,14 @@ async def compare_texts(
             response=response,
             reference=reference,
             mode=mode,
-            atomicity=atomicity
+            atomicity=atomicity_or_type
         )
         
-        scorer = _get_scorer(comparison_type)
+        if comparison_type==ComparisonType.ROUGE_SCORE:
+            scorer = _get_rouge_scorer(rouge_type=atomicity_or_type, mode=mode)
+        else:
+            scorer = _get_scorer(comparison_type)
+            
         return await scorer.single_turn_ascore(sample)
     
     except Exception as e:
@@ -94,14 +107,14 @@ def compare_texts_sync(
     reference: str,
     comparison_type: Union[ComparisonType, str] = ComparisonType.FACTUAL_CORRECTNESS,
     mode: str = None,
-    atomicity: str = None,
+    atomicity_or_type: str = None,
     model: str = "gpt-4o-mini", 
     base_url: str = "https://api.openai.com/v1"
 ) -> float:
     """Versão síncrona de compare_texts"""
     try:
         return asyncio.run(compare_texts(
-            response, reference, comparison_type, mode, atomicity, model, base_url
+            response, reference, comparison_type, mode, atomicity_or_type, model, base_url
         ))
     except Exception as e:
         # Capturar erro específico de embedding

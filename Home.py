@@ -627,17 +627,26 @@ with tab1:
             key="single_comparison_type"
         )
 
-    mode, atomicity = None, None
+    mode, atomicity_or_type = None, None
     with col2:
         if comparison_type == ComparisonType.FACTUAL_CORRECTNESS.value:
             mode = st.selectbox("Mode: ", ["F1", "Precision", "Recall"], key="single_mode")
             if mode:
                 st.session_state.mode = mode.lower()
+        elif comparison_type == ComparisonType.ROUGE_SCORE.value:
+            mode = st.selectbox("Mode: ", ["fmeasure", "precision", "recall"], key="single_mode")
+            if mode:
+                st.session_state.mode = mode.lower()
+                
     with col3:
         if comparison_type == ComparisonType.FACTUAL_CORRECTNESS.value:
-            atomicity = st.selectbox("Atomicity: ", ["None", "High", "Low"], key="single_atomicity")
-            if atomicity:
-                st.session_state.atomicity = atomicity.lower()
+            atomicity_or_type = st.selectbox("Atomicity: ", ["None", "High", "Low"], key="single_atomicity")
+            if atomicity_or_type:
+                st.session_state.atomicity_or_type = atomicity_or_type.lower()
+        elif comparison_type == ComparisonType.ROUGE_SCORE.value:
+            atomicity_or_type = st.selectbox("Rouge Type: ", ["rouge1", "rougeL"], key="single_atomicity")
+            if atomicity_or_type:
+                st.session_state.atomicity_or_type = atomicity_or_type.lower()
 
     if st.button("Comparar Textos", type="primary", key="single_compare"):
         if not reference_text or not generated_text:
@@ -653,7 +662,7 @@ with tab1:
                         reference_text,
                         comparison_type,
                         mode,
-                        atomicity,
+                        atomicity_or_type,
                         model, 
                         base_url
                     )
@@ -839,8 +848,18 @@ with tab2:
         evaluation_options.extend([
             "BLEU Score"
         ])
+        
+    if ComparisonType.ROUGE_SCORE.value in comparison_types_multi:
+        evaluation_options.extend([
+            "ROUGE Score - Mode: Fmeasure, Rouge-Type: Rouge1",
+            "ROUGE Score - Mode: Precision, Rouge-Type: Rouge1",
+            "ROUGE Score - Mode: Recall, Rouge-Type: Rouge1",
+            "ROUGE Score - Mode: Fmeasure, Rouge-Type: RougeL",
+            "ROUGE Score - Mode: Precision, Rouge-Type: RougeL",
+            "ROUGE Score - Mode: Recall, Rouge-Type: RougeL"
+        ])
     
-    # Definir opções de avaliação disponíveis
+    # Definir opções de avaliação disponíveis (DEFAULT)
     evaluation_options_original = [
         "Factual Correctness - Mode: F1, Atomicity: None",
         "Factual Correctness - Mode: F1, Atomicity: High", 
@@ -1002,6 +1021,11 @@ with tab2:
                         return ComparisonType.NON_LLM_STRING_SIMILARITY.value, None, None
                     elif eval_string.startswith("BLEU Score"):
                         return ComparisonType.BLEU_SCORE.value, None, None
+                    elif eval_string.startswith("ROUGE Score"):
+                        parts = eval_string.split(" - ")[1].split(", ")
+                        mode = parts[0].split(": ")[1].lower()
+                        rouge_type = parts[1].split(": ")[1].lower()
+                        return ComparisonType.ROUGE_SCORE.value, mode, rouge_type
                     else:
                         return ComparisonType.FACTUAL_CORRECTNESS.value, "f1", "none"
                 
@@ -1020,7 +1044,7 @@ with tab2:
                     # Para cada tipo de avaliação selecionado
                     for eval_config in selected_evaluations:
                         evaluation_count += 1
-                        comparison_type, mode, atomicity = parse_evaluation_config(eval_config)
+                        comparison_type, mode, atomicity_or_type = parse_evaluation_config(eval_config)
                         
                         status_text.text(f"Avaliando: Iteração {comp['iteration']} - {eval_config}")
                         
@@ -1030,7 +1054,7 @@ with tab2:
                                 comp['reference'],
                                 comparison_type,
                                 mode,
-                                atomicity,
+                                atomicity_or_type,
                                 model,
                                 base_url
                             )
