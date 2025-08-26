@@ -1,6 +1,7 @@
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics._factual_correctness import FactualCorrectness
 from ragas.metrics import SemanticSimilarity
+from ragas.metrics._string import NonLLMStringSimilarity
 from utils.llm import eval_llm, update_eval_llm
 import asyncio
 import os
@@ -10,11 +11,19 @@ from typing import Union
 class ComparisonType(Enum):
     FACTUAL_CORRECTNESS = "factual_correctness"
     SEMANTIC_SIMILARITY = "semantic_similarity"
+    NON_LLM_STRING_SIMILARITY = "non_llm_string_similarity"
 
 LABEL_FORMAT = {
     ComparisonType.FACTUAL_CORRECTNESS.value: "Correção Factual",
-    ComparisonType.SEMANTIC_SIMILARITY.value: "Similaridade Semântica"
+    ComparisonType.SEMANTIC_SIMILARITY.value: "Similaridade Semântica",
+    ComparisonType.NON_LLM_STRING_SIMILARITY.value: "Similaridade de String Não-LLM"
 }
+
+LABEL_OPTIONS = [
+    ComparisonType.FACTUAL_CORRECTNESS.value,
+    ComparisonType.SEMANTIC_SIMILARITY.value,
+    ComparisonType.NON_LLM_STRING_SIMILARITY.value,
+]
 
 def _get_scorer(comparison_type: ComparisonType):
     """Factory para criar scorer baseado no tipo de comparação"""
@@ -30,6 +39,8 @@ def _get_scorer(comparison_type: ComparisonType):
                 raise ValueError("O provedor/modelo escolhido não possui método de embedding necessário para Similaridade Semântica")
             else:
                 raise ValueError(f"Erro ao configurar embeddings: {str(e)}")
+    elif comparison_type == ComparisonType.NON_LLM_STRING_SIMILARITY:
+        return NonLLMStringSimilarity()
     else:
         raise ValueError(f"Tipo de comparação não suportado: {comparison_type}")
 

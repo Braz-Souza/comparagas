@@ -3,7 +3,8 @@ import os
 import pandas as pd
 import json
 from datetime import datetime
-from utils.ragas_text_comparison import LABEL_FORMAT, compare_texts_sync, ComparisonType
+from utils.ragas_text_comparison import compare_texts_sync, ComparisonType
+from utils.ragas_text_comparison import LABEL_OPTIONS, LABEL_FORMAT
 from utils.llm import eval_llm, update_eval_llm
 from utils.report_generator import generate_pdf_report, generate_docx_report
 import streamlit.components.v1 as components
@@ -620,7 +621,7 @@ with tab1:
     with col1:
         comparison_type = st.selectbox(
             "Tipo de Comparação:",
-            options=[ComparisonType.FACTUAL_CORRECTNESS.value, ComparisonType.SEMANTIC_SIMILARITY.value],
+            options=LABEL_OPTIONS,
             format_func=lambda x: LABEL_FORMAT.get(x, x),
             help="Escolha o tipo de comparação a ser realizada",
             key="single_comparison_type"
@@ -800,7 +801,7 @@ with tab2:
     # Comparison type selection for multiple evaluations
     comparison_types_multi = st.multiselect(
         "Tipos de Comparação:",
-        options=[ComparisonType.FACTUAL_CORRECTNESS.value, ComparisonType.SEMANTIC_SIMILARITY.value],
+        options=LABEL_OPTIONS,
         default=st.session_state.get('multi_comparison_types', [ComparisonType.FACTUAL_CORRECTNESS.value]),
         on_change=on_change_callback,
         format_func=lambda x: LABEL_FORMAT.get(x, x),
@@ -826,8 +827,14 @@ with tab2:
     
     if ComparisonType.SEMANTIC_SIMILARITY.value in comparison_types_multi:
         evaluation_options.extend([
-            "Semantic Similarity - Default Configuration"
+            "Semantic Similarity"
         ])
+        
+    if ComparisonType.NON_LLM_STRING_SIMILARITY.value in comparison_types_multi:
+        evaluation_options.extend([
+            "Non LLM String Similarity"
+        ])
+        
     
     # Definir opções de avaliação disponíveis
     evaluation_options_original = [
@@ -987,6 +994,8 @@ with tab2:
                         return ComparisonType.FACTUAL_CORRECTNESS.value, mode, atomicity
                     elif eval_string.startswith("Semantic Similarity"):
                         return ComparisonType.SEMANTIC_SIMILARITY.value, None, None
+                    elif eval_string.startswith("Non LLM String Similarity"):
+                        return ComparisonType.NON_LLM_STRING_SIMILARITY.value, None, None
                     else:
                         return ComparisonType.FACTUAL_CORRECTNESS.value, "f1", "none"
                 
