@@ -651,8 +651,6 @@ with tab1:
     if st.button("Comparar Textos", type="primary", key="single_compare"):
         if not reference_text or not generated_text:
             st.error("Por favor, insira ambos os textos.")
-        elif not openai_key:
-            st.error("Por favor, insira sua OpenAI API Key.")
         else:
             with st.spinner("Avaliando..."):
                 try:
