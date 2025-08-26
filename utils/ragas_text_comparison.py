@@ -1,6 +1,6 @@
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics._factual_correctness import FactualCorrectness
-from ragas.metrics import SemanticSimilarity
+from ragas.metrics import SemanticSimilarity, BleuScore
 from ragas.metrics._string import NonLLMStringSimilarity
 from utils.llm import eval_llm, update_eval_llm
 import asyncio
@@ -12,17 +12,20 @@ class ComparisonType(Enum):
     FACTUAL_CORRECTNESS = "factual_correctness"
     SEMANTIC_SIMILARITY = "semantic_similarity"
     NON_LLM_STRING_SIMILARITY = "non_llm_string_similarity"
+    BLEU_SCORE = "bleu_score"
 
 LABEL_FORMAT = {
     ComparisonType.FACTUAL_CORRECTNESS.value: "Correção Factual",
     ComparisonType.SEMANTIC_SIMILARITY.value: "Similaridade Semântica",
-    ComparisonType.NON_LLM_STRING_SIMILARITY.value: "Similaridade de String Não-LLM"
+    ComparisonType.NON_LLM_STRING_SIMILARITY.value: "Similaridade de String Não-LLM",
+    ComparisonType.BLEU_SCORE.value: "Pontuação do BLEU"
 }
 
 LABEL_OPTIONS = [
     ComparisonType.FACTUAL_CORRECTNESS.value,
     ComparisonType.SEMANTIC_SIMILARITY.value,
     ComparisonType.NON_LLM_STRING_SIMILARITY.value,
+    ComparisonType.BLEU_SCORE.value
 ]
 
 def _get_scorer(comparison_type: ComparisonType):
@@ -41,6 +44,8 @@ def _get_scorer(comparison_type: ComparisonType):
                 raise ValueError(f"Erro ao configurar embeddings: {str(e)}")
     elif comparison_type == ComparisonType.NON_LLM_STRING_SIMILARITY:
         return NonLLMStringSimilarity()
+    elif comparison_type == ComparisonType.BLEU_SCORE:
+        return BleuScore()
     else:
         raise ValueError(f"Tipo de comparação não suportado: {comparison_type}")
 

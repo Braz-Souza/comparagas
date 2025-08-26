@@ -834,7 +834,11 @@ with tab2:
         evaluation_options.extend([
             "Non LLM String Similarity"
         ])
-        
+    
+    if ComparisonType.BLEU_SCORE.value in comparison_types_multi:
+        evaluation_options.extend([
+            "BLEU Score"
+        ])
     
     # Definir opções de avaliação disponíveis
     evaluation_options_original = [
@@ -996,6 +1000,8 @@ with tab2:
                         return ComparisonType.SEMANTIC_SIMILARITY.value, None, None
                     elif eval_string.startswith("Non LLM String Similarity"):
                         return ComparisonType.NON_LLM_STRING_SIMILARITY.value, None, None
+                    elif eval_string.startswith("BLEU Score"):
+                        return ComparisonType.BLEU_SCORE.value, None, None
                     else:
                         return ComparisonType.FACTUAL_CORRECTNESS.value, "f1", "none"
                 

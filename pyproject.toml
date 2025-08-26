@@ -19,6 +19,7 @@ reportlab = ">=4.0.0,<5.0.0"
 python-docx = ">=1.0.0,<2.0.0"
 kaleido = "0.2.1"
 rapidfuzz = "^3.13.0"
+sacrebleu = "^2.5.1"
 
 [tool.poetry.group.dev.dependencies]
 langchain = "^0.3.27"
