@@ -19,3 +19,4 @@ O projeto atual se trata sobre uma ferramenta produzida com Python na biblioteca
 <sub>© 2026 LABit - Laboratório de Inovação Tecnológica</sub>
 
 </div>
+
